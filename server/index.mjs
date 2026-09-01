@@ -35,6 +35,7 @@ import { draftWordDocument } from './word.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 const production = process.argv.includes('--production')
+const launchedDirectly = Boolean(process.argv[1]) && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 const port = Number(process.env.GXP_SENTINEL_PORT || process.env.PORT || 4173)
 const app = express()
 const asyncRoute = (handler) => async (request, response, next) => {
@@ -140,18 +141,22 @@ app.use((error, _request, response, _next) => {
   response.status(error.status || 500).json({ error: error.message })
 })
 
-if (production) {
-  const dist = path.join(root, 'dist')
-  if (!fs.existsSync(dist)) throw new Error('dist/ not found. Run npm run build first.')
-  app.use(express.static(dist))
-  app.use((_request, response) => response.sendFile(path.join(dist, 'index.html')))
-} else {
-  const { createServer } = await import('vite')
-  const vite = await createServer({ root, server: { middlewareMode: true }, appType: 'spa' })
-  app.use(vite.middlewares)
+if (launchedDirectly) {
+  if (production) {
+    const dist = path.join(root, 'dist')
+    if (!fs.existsSync(dist)) throw new Error('dist/ not found. Run npm run build first.')
+    app.use(express.static(dist))
+    app.use((_request, response) => response.sendFile(path.join(dist, 'index.html')))
+  } else {
+    const { createServer } = await import('vite')
+    const vite = await createServer({ root, server: { middlewareMode: true }, appType: 'spa' })
+    app.use(vite.middlewares)
+  }
+
+  app.listen(port, '127.0.0.1', () => {
+    console.log(`Document Checker running at http://127.0.0.1:${port}`)
+    console.log(`Twilio webhook: ${(process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${port}`).replace(/\/$/, '')}/api/whatsapp`)
+  })
 }
 
-app.listen(port, '127.0.0.1', () => {
-  console.log(`Document Checker running at http://127.0.0.1:${port}`)
-  console.log(`Twilio webhook: ${(process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${port}`).replace(/\/$/, '')}/api/whatsapp`)
-})
+export default app
