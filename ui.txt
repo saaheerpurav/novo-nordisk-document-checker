@@ -1,0 +1,57 @@
+Yes. To stop OpenAI Codex (and similar coding agents) from defaulting to the generic, over-indexed "AI look" (e.g., standard purple/indigo gradients, predictable 3-column card grids, and uninspired hero sections), you can use specific open-source repositories, dedicated system skills, and structured instruction methodologies. [1, 2] 
+The most effective tools, extensions, and workflows available include:
+## 1. Dedicated Codex Skills & Plugins
+Codex natively supports external playbook packages called Skills (defined via a SKILL.md format). [3, 4] 
+
+* 
+* frontend-design Skill: Available through the central openai/skills catalog, this is the single highest-leverage switch for Codex. Installing this skill automatically forces Codex to commit to distinct, non-generic layouts. It actively enforces design constraints like a "brand-first hierarchy", restricting the page to a maximum of two typefaces, using flat colors instead of gradients, and utilizing modern, cardless layouts. [2, 5, 6] 
+* taste-skill: A highly popular community repository that acts as a guardrail plugin. Once dropped into your workspace, it replaces Codex's tendency to default to boilerplate Tailwind templates with highly polished, modern design constraints. [7] 
+* 
+
+## 2. The DESIGN.md Workflow (Repositories)
+The modern industry standard for fixing "AI slop" is providing structural design constraints rather than vague text prompting. [8, 9] 
+
+* 
+* Awesome Design MD (Vault Agent): A massive open-source GitHub repository containing over 55 pre-made design.md files. These markdown files map out the absolute CSS variables, precise spacing scales, and typography rules of premium, award-winning sites (like Stripe, Airbnb, and Notion). [9] 
+* How it works: You place a chosen design.md template into your project's .agents/skills folder. Codex parses the plain markdown flawlessly without needing complex JSON configurations, strictly adhering to those professional design rules so it doesn't have to "guess" the aesthetic. [9, 10, 11] 
+* bitjaru/styleseed: Another excellent GitHub repository specifically built for engineers vibe-coding SaaS frontends. It acts as a design-seed rulebook that extracts clean, human-feeling UI grammars for coding agents to execute. [12] 
+* 
+
+## 3. Visual Review Extensions & Live Tools
+If Codex has already generated the frontend and you need to polish it visually:
+
+* 
+* Greenlight (VS Code Extension): A free extension that allows you to visually modify AI-generated code right inside your editor. Instead of endlessly prompting Codex to "fix the padding," you can visually click, tweak layout behaviors, add animations, and clean up the UI manually.
+* Impeccable Live: An interactive CLI tool that couples with frontend frameworks (like Astro). It overlays an interactive editor on your live local site, allowing you to select clunky sections and tell the AI precisely how to refine them in real-time. [13, 14] 
+* 
+
+------------------------------
+## Structural Instructions to Kill the "AI Look"
+If you prefer to inject instructions directly into your prompt or a custom .codex/config.toml file, explicitly forbid the following statistical biases: [2, 15] 
+
+| AI Giveaway | The Anti-Slop Instruction to Provide Codex |
+|---|---|
+| The Palette | "Do not use purple, indigo, or neon blue gradients. Use flat, real-world sampled brand colors." |
+| The Typography | "Do not use Inter, Roboto, or system defaults. Implement [Specific Font, e.g., Plus Jakarta Sans] via a precise type scale." |
+| Overused Cards | "Avoid wrapping every feature section in a rounded-2xl card grid. Use whitespace, asymmetric margins, and typography sizes for hierarchy." |
+| Borders Everywhere | "Minimize structural borders between sidebars, headers, and content blocks. Separate layout blocks using background shade shifts." |
+| Fluff Text | "Do not write generic subheadings that restate the obvious (e.g., under 'Settings', do not write 'Manage your settings'). Keep copy functional." |
+
+If you are currently setting up a project workspace, let me know which frontend stack you are using (e.g., Next.js, Vite + Tailwind, HTML/CSS) or where you host your agent config, and I can help you structure a custom SKILL.md file tailored exactly to your stack. [3, 16] 
+
+[1] [https://dev.to](https://dev.to/alanwest/how-to-fix-the-ai-generated-look-in-your-frontend-1ahh)
+[2] [https://medium.com](https://medium.com/design-bootcamp/how-to-stop-your-frontend-looking-ai-generated-efbb9681a6a2)
+[3] [https://medium.com](https://medium.com/@unicodeveloper/10-must-have-skills-for-claude-and-any-coding-agent-in-2026-b5451b013051)
+[4] [https://github.com](https://github.com/hashgraph-online/awesome-codex-plugins)
+[5] [https://composio.dev](https://composio.dev/content/top-codex-skills)
+[6] [https://open-design.ai](https://open-design.ai/agents/codex-design/)
+[7] [https://medium.com](https://medium.com/codetodeploy/your-ai-frontend-looks-generic-heres-the-one-repo-that-fixes-it-f67de5ff48cc)
+[8] [https://www.youtube.com](https://www.youtube.com/watch?v=zKBUBVtoM0g)
+[9] [https://www.youtube.com](https://www.youtube.com/watch?v=sCu34s8zb4o&t=235)
+[10] [https://learn.chatgpt.com](https://learn.chatgpt.com/docs/build-skills)
+[11] [https://www.youtube.com](https://www.youtube.com/watch?v=pY52H5gKhGg)
+[12] [https://github.com](https://github.com/bitjaru/styleseed)
+[13] [https://www.youtube.com](https://www.youtube.com/watch?v=Ln11hm7jieM)
+[14] [https://www.youtube.com](https://www.youtube.com/watch?v=2NgzdJKv4eA)
+[15] [https://www.firecrawl.dev](https://www.firecrawl.dev/blog/best-codex-plugins)
+[16] [https://dev.to](https://dev.to/astrodevil/10-ai-assistants-for-frontend-developers-that-will-change-the-way-you-code-3fh4)
