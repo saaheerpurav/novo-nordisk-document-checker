@@ -163,6 +163,8 @@ function MiraHost({ state, view, go }) {
   const face = useRef(null)
   const responseText = useRef('')
   const guidanceRequested = useRef(false)
+  const greeting = useRef(false)
+  const playbackBlocked = useRef(false)
   const actionsRef = useRef([])
   const highlightTimer = useRef(null)
   const suggestedActions = miraScreenActions(state, view)
@@ -253,14 +255,24 @@ function MiraHost({ state, view, go }) {
     }
     if (['response.output_audio_transcript.done', 'response.audio_transcript.done'].includes(event.type)) {
       const transcript = String(event.transcript || responseText.current).trim()
-      if (transcript) { setCaption(transcript); record('assistant', transcript) }
+      if (transcript) {
+        setCaption(transcript)
+        if (!greeting.current) record('assistant', transcript)
+      }
       responseText.current = ''
     }
     if (event.type === 'response.done') {
+      const wasGreeting = greeting.current
       const transcript = responseText.current.trim()
-      if (transcript) { setCaption(transcript); record('assistant', transcript); responseText.current = '' }
+      if (transcript) {
+        setCaption(transcript)
+        if (!wasGreeting) record('assistant', transcript)
+        responseText.current = ''
+      }
+      greeting.current = false
       releaseMicrophone()
       setPhase('ready')
+      if (wasGreeting) setOpen(false)
       if (guidanceRequested.current) {
         highlightAction(actionsRef.current[0])
         guidanceRequested.current = false
@@ -288,9 +300,9 @@ function MiraHost({ state, view, go }) {
     draw()
   }
 
-  const start = async () => {
+  const start = async (mode = 'listen') => {
     if (phase === 'connecting') return
-    if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+    if (!window.RTCPeerConnection) {
       setCaption('Voice is unavailable in this browser. Open Mira to type.')
       setPhase('error')
       setOpen(true)
@@ -303,17 +315,15 @@ function MiraHost({ state, view, go }) {
       const pc = new RTCPeerConnection()
       const remoteAudio = document.createElement('audio')
       remoteAudio.autoplay = true
+      remoteAudio.playsInline = true
       audio.current = remoteAudio
       peer.current = pc
       pc.ontrack = (event) => {
         remoteAudio.srcObject = event.streams[0]
-        remoteAudio.play().catch(() => {})
+        remoteAudio.play().then(() => { playbackBlocked.current = false }).catch(() => { playbackBlocked.current = true })
         startMeter(event.streams[0])
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
-      microphone.current = stream
-      const track = stream.getAudioTracks()[0]
-      microphoneSender.current = pc.addTrack(track, stream)
+      microphoneSender.current = pc.addTransceiver('audio', { direction: 'sendrecv' }).sender
       const dc = pc.createDataChannel('oai-events')
       channel.current = dc
       dc.addEventListener('message', (message) => {
@@ -321,9 +331,16 @@ function MiraHost({ state, view, go }) {
       })
       dc.addEventListener('open', () => {
         responseText.current = ''
-        setCaption('Hi, I’m Mira.')
-        setPhase('listening')
         send({ type: 'session.update', session: { type: 'realtime', instructions: voiceContext(state, view) } })
+        if (mode === 'welcome') {
+          greeting.current = true
+          setCaption('Hi, I’m Mira. I can help review these documents.')
+          setPhase('speaking')
+          send({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Say exactly: Hi, I’m Mira. I can help review these documents.' }] } })
+          send({ type: 'response.create', response: { instructions: 'Say the supplied greeting exactly. Do not add anything.' } })
+        } else {
+          listen()
+        }
       })
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
@@ -343,6 +360,16 @@ function MiraHost({ state, view, go }) {
     }
   }
 
+  useEffect(() => {
+    if (!state.ai?.configured || peer.current || view !== 'home' || window.sessionStorage.getItem('mira-welcomed')) return undefined
+    const timer = window.setTimeout(() => {
+      if (window.sessionStorage.getItem('mira-welcomed')) return
+      window.sessionStorage.setItem('mira-welcomed', '1')
+      start('welcome')
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [])
+
   const listen = async () => {
     if (!microphoneSender.current || phase === 'connecting') return
     setOpen(true)
@@ -359,8 +386,12 @@ function MiraHost({ state, view, go }) {
   }
 
   const mainAction = () => {
-    if (phase === 'idle' || phase === 'error') return start()
+    if (phase === 'idle' || phase === 'error') return start('listen')
     if (phase === 'speaking') {
+      if (greeting.current && playbackBlocked.current) {
+        audio.current?.play().then(() => { playbackBlocked.current = false }).catch(() => {})
+        return
+      }
       send({ type: 'response.cancel' })
       setPhase('ready')
       return
@@ -375,7 +406,7 @@ function MiraHost({ state, view, go }) {
   const speaking = phase === 'speaking'
   return <aside className={`assistant ${open ? 'is-open' : ''} is-${phase} ${speaking ? 'is-speaking' : ''}`}>
     <button className="assistant-button" onClick={mainAction} aria-label={phase === 'listening' ? 'Stop listening' : speaking ? 'Interrupt Mira' : 'Talk to Mira'}>
-      <span className="mira-face-wrap" ref={face}><MiraFace/></span><span className="mira-name"><strong>Mira</strong><i/></span>
+      <span className="mira-face-wrap" ref={face}><MiraFace/></span><span className="mira-name"><strong>Mira</strong><Icon name="mic" size={18}/></span>
     </button>
     {open && <div className="assistant-content"><p>{caption}</p><div className="assistant-suggestions">{suggestedActions.map((action) => <button key={action.id} onClick={() => highlightAction(action, true)}>{action.label}</button>)}</div><div className="assistant-footer"><button onClick={() => go('ask')}><Icon name="chat" size={17}/>Open chat</button><button className="assistant-icon" onClick={stop} aria-label="Close Mira" title="Close"><Icon name="close" size={17}/></button></div></div>}
   </aside>
