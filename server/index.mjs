@@ -20,6 +20,8 @@ import {
   recordMiraConversation,
   rejectAction,
   resetState,
+  createDocument,
+  auditTrail,
   reviewDocument,
   reviewWorkspace,
   runAssuranceScenario,
@@ -29,7 +31,7 @@ import {
 } from './state.mjs'
 import { createRealtimeCall } from './realtime.mjs'
 import { sendWhatsAppAlert, twiml, verifyTwilioRequest, whatsappReply } from './twilio.mjs'
-import { sendInspectionReport } from './report.mjs'
+import { sendAuditTrailReport, sendInspectionReport } from './report.mjs'
 import { draftWordDocument } from './word.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -64,14 +66,17 @@ app.get('/api/events', (request, response) => {
 })
 
 app.post('/api/select', (request, response) => response.json(selectRecord(request.body)))
-app.post('/api/document/import', (request, response) => response.json(importDocument(request.body)))
+app.post('/api/document/import', asyncRoute(async (request, response) => response.json(importDocument(request.body))))
 app.post('/api/checklist/apply', (request, response) => response.json(applyChecklist(request.body.documentId, request.body.checklistId)))
 app.post('/api/checklist/add', (request, response) => response.json(addChecklist(request.body)))
 app.post('/api/document/review', asyncRoute(async (request, response) =>
   response.json(await reviewDocument(request.body.documentId, request.body.actor)),
 ))
 app.post('/api/document/draft', asyncRoute(async (request, response) =>
-  response.json(await draftMissingSection(request.body.documentId, request.body.section)),
+  response.json(await draftMissingSection(request.body.documentId, request.body.section, { full: Boolean(request.body.full) })),
+))
+app.post('/api/document/create', asyncRoute(async (request, response) =>
+  response.json(await createDocument(request.body.type, request.body.title)),
 ))
 app.post('/api/document/draft/dismiss', (_request, response) => response.json(dismissDraft()))
 app.post('/api/document/draft/decide', (request, response) => response.json(decideDraft(request.body.decision, request.body.actor)))
@@ -107,6 +112,12 @@ app.post('/api/action/reject', (request, response) =>
 app.post('/api/action/prepare', (request, response) => response.json(prepareAction(request.body.findingId)))
 app.post('/api/finding/update', (request, response) => response.json(updateFinding(request.body.findingId, request.body)))
 app.post('/api/reset', (_request, response) => response.json(resetState()))
+
+app.get('/api/audit-trail', (_request, response) => response.json(auditTrail()))
+
+app.get('/api/audit-trail.pdf', (_request, response) => {
+  sendAuditTrailReport(response, { ...auditTrail(), generatedAt: new Date().toISOString() })
+})
 
 app.get('/api/inspection-pack', (_request, response) => {
   sendInspectionReport(response, inspectionPack())

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -20,6 +21,22 @@ database.exec(`
     schema_version INTEGER NOT NULL,
     state_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS audit_events (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    title TEXT NOT NULL,
+    detail TEXT,
+    document_id TEXT,
+    document_version TEXT,
+    prompt TEXT,
+    response TEXT,
+    model TEXT,
+    response_id TEXT,
+    prev_hash TEXT NOT NULL,
+    hash TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS uploaded_files (
     document_id TEXT PRIMARY KEY,
@@ -58,4 +75,45 @@ export function saveUploadedFile(documentId, file) {
 
 export function clearUploadedFiles() {
   database.exec('DELETE FROM uploaded_files')
+}
+
+// --- Append-only audit trail -------------------------------------------------
+// INSERT only. Never UPDATE, never DELETE — including on reset. The hash is
+// computed here from the row being written, never from mutable in-memory state,
+// and this is the only writer.
+const auditColumns = ['at', 'actor', 'action', 'title', 'detail', 'document_id', 'document_version', 'prompt', 'response', 'model', 'response_id']
+
+export function appendAuditEvent(record = {}) {
+  const row = Object.fromEntries(auditColumns.map((key) => [key, record[key] == null ? null : String(record[key])]))
+  const previous = database.prepare('SELECT hash FROM audit_events ORDER BY seq DESC LIMIT 1').get()
+  const prevHash = previous?.hash || 'genesis'
+  const hash = crypto.createHash('sha256').update(prevHash + JSON.stringify(row)).digest('hex')
+  database.prepare(`
+    INSERT INTO audit_events (at, actor, action, title, detail, document_id, document_version, prompt, response, model, response_id, prev_hash, hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(...auditColumns.map((key) => row[key]), prevHash, hash)
+  return hash
+}
+
+export function readAuditEvents(limit = 500) {
+  return database.prepare('SELECT * FROM audit_events ORDER BY seq DESC LIMIT ?').all(limit)
+}
+
+export function verifyAuditChain() {
+  const rows = database.prepare('SELECT * FROM audit_events ORDER BY seq ASC').all()
+  let prevHash = 'genesis'
+  for (const row of rows) {
+    const body = Object.fromEntries(auditColumns.map((key) => [key, row[key]]))
+    const expected = crypto.createHash('sha256').update(prevHash + JSON.stringify(body)).digest('hex')
+    if (row.prev_hash !== prevHash || row.hash !== expected) return { verified: false, brokenAt: row.seq, count: rows.length }
+    prevHash = row.hash
+  }
+  return { verified: true, brokenAt: null, count: rows.length }
+}
+
+// Test-only: the tamper scenario needs a way to corrupt and restore one row.
+export function _tamperAuditRow(seq, title) {
+  const before = database.prepare('SELECT title FROM audit_events WHERE seq = ?').get(seq)
+  database.prepare('UPDATE audit_events SET title = ? WHERE seq = ?').run(title, seq)
+  return before?.title
 }

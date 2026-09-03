@@ -1,0 +1,77 @@
+{
+  "note": "AUTHORED SPLIT — labels derived from documents this team wrote (server/seed-content.mjs). Report separately from any held-out split. Add held-out entries with split:\"held-out\" and documents nobody on the team authored.",
+  "entries": [
+    {
+      "documentId": "URS-042",
+      "title": "Software Requirements Document",
+      "checklistId": "CHK-REQUIREMENTS",
+      "split": "authored",
+      "expected": {
+        "Title and version are present": "pass",
+        "Purpose and scope are explained": "pass",
+        "Requirements are clear and testable": "pass",
+        "Every requirement has a test result": "fail"
+      }
+    },
+    {
+      "documentId": "RISK-PSE-009",
+      "title": "Project Risk Assessment",
+      "checklistId": "CHK-RISK",
+      "split": "authored",
+      "expected": {
+        "Risk scoring method is explained": "pass",
+        "Current system changes are included": "fail",
+        "Each risk has a planned response": "pass",
+        "Review date is current": "fail"
+      }
+    },
+    {
+      "documentId": "DOC-OAM-017",
+      "title": "Equipment Maintenance Procedure",
+      "checklistId": "CHK-PROCEDURE",
+      "split": "authored",
+      "expected": {
+        "Document owner is named": "pass",
+        "Failure and recovery steps are included": "fail",
+        "Escalation contacts are identified": "pass",
+        "Approval and effective date are present": "fail"
+      }
+    },
+    {
+      "documentId": "SOP-VAL-004",
+      "title": "Document Review Checklist",
+      "checklistId": "CHK-PROCEDURE",
+      "split": "authored",
+      "expected": {
+        "Responsibilities are assigned to roles": "pass",
+        "Steps are complete and in order": "pass",
+        "Approval and effective date are present": "pass",
+        "Changes are recorded with a reason": "pass"
+      }
+    },
+    {
+      "documentId": "ACC-REV-2026-Q2",
+      "title": "Quarterly Access Review",
+      "checklistId": "CHK-ACCESS",
+      "split": "authored",
+      "expected": {
+        "All user accounts are listed": "pass",
+        "Every account has been reviewed": "fail",
+        "Old external accounts are removed": "fail",
+        "Final approval is present": "fail"
+      }
+    },
+    {
+      "documentId": "INC-PI-1021",
+      "title": "System Incident Report",
+      "checklistId": "CHK-INCIDENT",
+      "split": "authored",
+      "expected": {
+        "The incident is clearly described": "pass",
+        "The cause has been identified": "fail",
+        "The GxP impact has been reviewed": "fail",
+        "A corrective action is recorded with an owner": "fail"
+      }
+    }
+  ]
+}

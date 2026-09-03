@@ -42,7 +42,9 @@ export function whatsappReply(body, state, baseUrl) {
   if (command.includes('REPORT')) return `Download the selected document report: ${baseUrl}/api/inspection-pack`
   if (command.includes('OPEN')) return `Open the document review: ${baseUrl}/?view=documents`
   if (command.includes('STATUS') || command.includes('READY')) {
-    return `${document.title} is ${document.score}% complete. ${missing.length} check(s) need attention.`
+    const completeness = document.score == null ? 'not yet assessed' : `${document.score}% complete`
+    const unassessed = document.checks.filter((check) => check.result === 'unknown').length
+    return `${document.title} is ${completeness}. ${missing.length} check(s) need attention, ${unassessed} not assessed.`
   }
   if (command.includes('APPROVE')) return `Approval is not accepted through WhatsApp. Review the document in the web app: ${baseUrl}/?view=documents`
   return 'Reply STATUS, EVIDENCE, OWNER, ISSUES, REPORT, or OPEN. Approval must happen in the web app.'

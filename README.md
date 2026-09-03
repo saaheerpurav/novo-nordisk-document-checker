@@ -12,9 +12,11 @@ Document checks, document Q&A, missing-section drafts and safety tests call the 
 
 ## Run locally
 
-```powershell
+Requires **Node 23.4+** (the server uses the built-in `node:sqlite`). `nvm use` reads `.nvmrc`.
+
+```sh
 npm install
-Copy-Item .env.example .env
+cp .env.example .env        # Windows: copy .env.example .env
 # Add OPENAI_API_KEY to .env
 npm run dev
 ```
@@ -37,11 +39,11 @@ Use **Upload** to attach a PDF, Word document, spreadsheet, image, text, CSV or 
 
 ## Twilio WhatsApp
 
-The existing Twilio webhook remains available at `/api/whatsapp`. Configure the values in `.env.example` and expose the local server through a public HTTPS URL.
+The Twilio webhook is available at `/api/whatsapp`. Configure the values in `.env.example` and expose the local server through a public HTTPS URL.
 
 ## Verify
 
-```powershell
+```sh
 npm test
 npm run build
 npm run verify:ui
