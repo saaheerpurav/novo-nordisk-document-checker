@@ -109,6 +109,20 @@ function deterministicChecks(document) {
   return rules
 }
 
+// Rules read metadata the document already carries, so they cost nothing and need no
+// model. Run them the moment a document or a checklist arrives rather than only during
+// an AI review, or the deterministic layer stays invisible until someone spends a token.
+// A rule outranks a prior verdict: it is the one thing here that is reproducible.
+function withRules(document, labels, prior = []) {
+  const rules = deterministicChecks(document)
+  const previous = new Map(prior.map((check) => [check.label.toLowerCase(), check]))
+  return labels.map((label) => {
+    const rule = rules.find((item) => item.match.test(label))
+    if (rule) return { label, result: rule.result, note: rule.note, source: 'rule' }
+    return previous.get(label.toLowerCase()) || { label, result: 'unknown', note: NOT_ASSESSED }
+  })
+}
+
 // Items that carry a compliance decision outweigh descriptive ones, and a failed
 // critical item blocks readiness regardless of the percentage.
 const CRITICAL = /approval|approved|sign(ed|ature)|effective date|test (result|evidence)|privileged|corrective action/i
@@ -456,9 +470,9 @@ const initialState = () => ({
   documents: documents().map((document) => {
     const checklistId = checklistIdForType(document.type)
     const items = checklistTemplates().find((item) => item.id === checklistId).items
-    // Keep the curated seed verdicts, extend the rest of the checklist as not assessed.
-    const seeded = new Map(document.checks.map((check) => [check.label.toLowerCase(), check]))
-    const checks = items.map((label) => seeded.get(label.toLowerCase()) || { label, result: 'unknown', note: NOT_ASSESSED })
+    // Rules decide what they can, curated seed verdicts fill in behind them, and the
+    // rest of the checklist stays honestly unassessed.
+    const checks = withRules({ ...document, metadataRead: true }, items, document.checks)
     const verdict = readiness(checks)
     return {
       ...document, content: seedContent[document.id] || '', checklistId, checks,
@@ -533,7 +547,7 @@ export function applyChecklist(documentId, checklistId) {
   document.checklistResults[document.checklistId] = { checks: clone(document.checks), score: document.score, summary: document.summary, lastReview: document.lastReview || null }
   document.checklistId = checklist.id
   const previous = document.checklistResults[checklist.id]
-  document.checks = previous ? clone(previous.checks) : checklist.items.map((label) => ({ label, result: 'unknown', note: NOT_ASSESSED }))
+  document.checks = withRules(document, checklist.items, previous ? clone(previous.checks) : [])
   document.score = previous?.score ?? null
   document.summary = previous?.summary || `${checklist.name} selected. Run the AI check to evaluate the document.`
   document.lastReview = previous?.lastReview || null
@@ -577,8 +591,9 @@ export function importDocument(file = {}) {
     updated: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), approvalDate: metadata.approvalDate, effectiveDate: metadata.effectiveDate,
     metadataRead: Boolean(text.trim()),
     summary: `Imported ${Math.max(0, Number(file.size) || 0).toLocaleString()} byte file. Content is staged for controlled review.`,
-    checks: checklist.items.map((label) => ({ label, result: 'unknown', note: NOT_ASSESSED })),
+    checks: [],
   }
+  record.checks = withRules(record, checklist.items)
   record.checklistResults = { [checklist.id]: { checks: clone(record.checks), score: record.score, summary: record.summary } }
   state.documents.unshift(record)
   if (file.dataUrl) {
@@ -714,8 +729,9 @@ export async function createDocument(type = 'Risk assessment', title) {
     owner: 'Unassigned', updated: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     approvalDate: null, metadataRead: true,
     summary: `A new ${match.toLowerCase()} created from the ${checklist.name} template. Nothing has been drafted or approved yet.`,
-    checks: checklist.items.map((label) => ({ label, result: 'unknown', note: NOT_ASSESSED })),
+    checks: [],
   }
+  record.checks = withRules(record, checklist.items)
   record.checklistResults = { [checklist.id]: { checks: clone(record.checks), score: null, summary: record.summary } }
   state.documents.unshift(record)
   state.selectedDocumentId = id
