@@ -500,6 +500,26 @@ const initialState = () => ({
 
 let state = (process.env.GXP_FRESH ? null : loadWorkspace(schemaVersion)) || initialState()
 
+// The trail only ever recorded user actions, so a fresh workspace opened the
+// Audit trail on an empty table — the one screen whose whole point is that
+// nothing goes unrecorded. Seeding writes real hash-chained rows for work the
+// system genuinely did: loading each example and running the rule layer over it.
+function seedAuditTrail() {
+  if (readAuditEvents(1).length) return
+  appendAuditEvent({ at: now(), actor: 'Document Checker', action: 'Import', title: 'Example workspace loaded', detail: `${state.documents.length} example documents were added to the workspace.` })
+  for (const document of state.documents) {
+    const ruled = document.checks.filter((check) => check.source === 'rule')
+    if (!ruled.length) continue
+    appendAuditEvent({
+      at: now(), actor: 'Document Checker', action: 'Check',
+      title: `Deterministic rules applied to ${document.title}`,
+      detail: ruled.map((check) => `${check.label}: ${check.result.toUpperCase()} — ${check.note}`).join(' · '),
+      document_id: document.id, document_version: document.version,
+    })
+  }
+}
+seedAuditTrail()
+
 function broadcast() {
   state.revision += 1
   state.evidenceGraph = buildEvidenceGraph(state.documents, state.findings)

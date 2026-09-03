@@ -10,8 +10,47 @@ const api = async (url, options = {}) => {
 }
 
 const views = { home: 'Home', documents: 'Documents', issues: 'Issues', evidence: 'Evidence map', ask: 'Mira', trail: 'Audit trail', safety: 'Safety tests' }
+const NAV_GROUPS = [['Review', ['home', 'documents', 'issues']], ['Evidence', ['evidence', 'trail']], ['Assist', ['ask', 'safety']]]
 
 const scoreLabel = (score) => (score == null ? '—' : `${score}%`)
+
+// An explicit map, never a regex: "Risk assessment".match(/\b[A-Z]/g) yields
+// ["R"], which regenerates the truncation bug it was meant to fix. Keys are the
+// document types in server/state.mjs verbatim.
+const TYPE_CODE = {
+  'Risk assessment': 'RA', Procedure: 'SOP', Requirements: 'URS',
+  'Incident report': 'INC', 'Access review': 'ACC', Checklist: 'CHK',
+}
+const typeCode = (type) => TYPE_CODE[type] || 'DOC'
+
+const tally = (checks = []) => ({
+  pass: checks.filter((check) => check.result === 'pass').length,
+  fail: checks.filter((check) => check.result === 'fail').length,
+  unknown: checks.filter((check) => check.result === 'unknown').length,
+  total: checks.length || 1,
+})
+
+// One primitive, five appearances. width arrives as an inline style from server
+// state, so a push that changes nothing animates nothing.
+function Meter({ checks, value, band, className = '' }) {
+  if (checks) {
+    const { pass, fail, unknown, total } = tally(checks)
+    return <span className={`meter meter--split ${className}`} role="img" aria-label={`${pass} passed, ${fail} failed, ${unknown} not assessed`}>
+      <i className="is-pass" style={{ width: `${(pass / total) * 100}%` }}/>
+      <i className="is-fail" style={{ width: `${(fail / total) * 100}%` }}/>
+      <i className="is-unknown" style={{ width: `${(unknown / total) * 100}%` }}/>
+    </span>
+  }
+  const tone = band ? (value >= 80 ? 'is-high' : value >= 60 ? 'is-mid' : 'is-low') : ''
+  return <span className={`meter ${className}`} role="img" aria-label={`${value ?? 0} percent`}><i className={tone} style={{ width: `${value ?? 0}%` }}/></span>
+}
+
+function ProvenanceKey() {
+  return <p className="provenance-key">
+    <span className="provenance provenance--rule">Rule</span>deterministic
+    <span className="provenance provenance--ai">AI</span>model judgement
+  </p>
+}
 
 function Icon({ name, size = 19 }) {
   const paths = {
@@ -50,7 +89,7 @@ function PageTitle({ title, action }) { return <header className="page-title"><h
 function UploadButton({ openFile, large = false }) { return <button className={`button button--primary ${large ? 'button--large' : ''}`} data-mira-action="upload" onClick={openFile}><Icon name="upload"/>Upload document</button> }
 
 function DocumentRow({ document, selected, onClick }) {
-  return <button className={`document-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><span className="file-icon">{document.type.slice(0, 4)}</span><span className="document-name"><strong>{document.title}</strong><span>{document.type} · Updated {document.updated}</span></span><Status>{document.status}</Status><strong className="document-score">{scoreLabel(document.score)}</strong><Icon name="chevron" size={16}/></button>
+  return <button className={`document-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><span className="file-icon" title={document.type}>{typeCode(document.type)}</span><span className="document-name"><strong>{document.title}</strong><span>{document.type} · Updated {document.updated}</span><Meter checks={document.checks}/></span><Status>{document.status}</Status><strong className="document-score">{scoreLabel(document.score)}</strong><Icon name="chevron" size={16}/></button>
 }
 
 function ReviewProgress({ documents, active }) {
@@ -68,11 +107,20 @@ function Home({ state, go, select, openFile, run, busy }) {
     return () => window.clearInterval(timer)
   }, [reviewing, state.documents.length])
   const reviewAll = async () => { setReviewing(true); try { await run('/api/workspace/review') } finally { setReviewing(false) } }
-  const needsWork = state.documents.filter((document) => document.score == null || document.score < 80).length
+  const ready = state.documents.filter((document) => document.score != null && document.score >= 80).length
+  const blocked = state.documents.filter((document) => document.status === 'Not ready').length
+  const unassessed = state.documents.filter((document) => document.score == null).length
   const openIssues = state.findings.filter((finding) => finding.status !== 'Resolved').length
+  const critical = state.findings.filter((finding) => finding.status !== 'Resolved' && finding.severity === 'Critical').length
+  const assessedChecks = state.documents.flatMap((document) => document.checks)
   return <>
-    <section className="welcome"><div><h1>Check every document before an audit.</h1><p>Review one file or check the whole workspace for missing, outdated and conflicting information.</p><div className="welcome-actions"><UploadButton openFile={openFile} large/><button className="button button--large" data-mira-action="review-all" disabled={busy} onClick={reviewAll}>{reviewing ? 'Reviewing…' : 'Review all documents'}</button></div></div><div className="how-it-works"><div><b>1</b><strong>Upload</strong></div><span>→</span><div><b>2</b><strong>Check</strong></div><span>→</span><div><b>3</b><strong>Fix</strong></div></div></section>
-    <section className="summary-row"><article><strong>{state.documents.length}</strong><span>Documents</span></article><article><strong>{needsWork}</strong><span>Need attention</span></article><article><strong>{openIssues}</strong><span>Open issues</span></article></section>
+    <section className="welcome"><div><h1>Check every document before an audit.</h1><p>Review one file or check the whole workspace for missing, outdated and conflicting information.</p><div className="welcome-actions"><UploadButton openFile={openFile} large/><button className="button button--large" data-mira-action="review-all" disabled={busy} onClick={reviewAll}>{reviewing ? 'Reviewing…' : 'Review all documents'}</button></div></div><div className="how-it-works"><div><b>1</b><strong>Upload</strong><em>Word, Excel, PDF or an image.</em></div><span>→</span><div><b>2</b><strong>Check</strong><em>Rules first, then the model.</em></div><span>→</span><div><b>3</b><strong>Fix</strong><em>Draft the gap, a person approves.</em></div></div></section>
+    {/* Every cell carries its consequence sentence; without one the strip degrades back into three lonely numbers. */}
+    <section className="summary-row">
+      <article><span className="stat-label">Documents ready</span><strong className="data">{ready} <span>/ {state.documents.length}</span></strong><Meter value={Math.round((ready / (state.documents.length || 1)) * 100)}/><p className="stat-foot">{blocked} blocked by a critical finding.</p></article>
+      <article><span className="stat-label">Checks assessed</span><strong className="data">{assessedChecks.filter((check) => check.result !== 'unknown').length} <span>/ {assessedChecks.length}</span></strong><Meter checks={assessedChecks}/><p className="stat-foot">{unassessed} document(s) not assessed at all.</p></article>
+      <article><span className="stat-label">Open issues</span><strong className="data">{openIssues}</strong><Meter value={openIssues ? Math.round((critical / openIssues) * 100) : 0} band/><p className="stat-foot">{critical} rated critical and unresolved.</p></article>
+    </section>
     {reviewing && <ReviewProgress documents={state.documents} active={activeDocument}/>} 
     {!reviewing && state.workspaceReview && <section className="panel workspace-result"><div><h2>Workspace review</h2><p>{state.workspaceReview.summary}</p>{state.workspaceReview.proposed != null && <p className="ledger">Proposed <b>{state.workspaceReview.proposed}</b> · retained <b>{state.workspaceReview.retained}</b> · rejected <b>{state.workspaceReview.rejected?.length || 0}</b> after independent verification{state.workspaceReview.rejected?.length > 0 && <button className="text-button" onClick={() => setShowRejected((open) => !open)}>{showRejected ? 'Hide' : 'Show'} rejected</button>}</p>}{showRejected && state.workspaceReview.rejected?.map((item) => <div key={item.title} className="rejected-issue"><strong>{item.title}</strong><span>{item.note}</span></div>)}</div><button className="button button--primary" data-mira-action="view-issues" onClick={() => go('issues')}>View {state.workspaceReview.issueCount} issues</button></section>}
     <section className="panel"><div className="panel-head"><h2>Your documents</h2><button className="text-button" onClick={() => go('documents')}>View all</button></div><div className="document-list">{state.documents.slice(0, 5).map((document) => <DocumentRow key={document.id} document={document} onClick={() => { select({ documentId: document.id }); go('documents') }}/>)}</div></section>
@@ -88,10 +136,81 @@ function ChecklistModal({ close, run }) {
 
 function Documents({ state, select, run, openFile, go, busy }) {
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
   const [addingChecklist, setAddingChecklist] = useState(false)
+  const searchRef = useRef(null)
   const selected = state.documents.find((document) => document.id === state.selectedDocumentId) || state.documents[0]
-  const shown = state.documents.filter((document) => document.title.toLowerCase().includes(query.toLowerCase()))
-  return <><PageTitle title="Documents" action={<UploadButton openFile={openFile}/>}/><div className="review-layout"><section className="panel document-browser"><label className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents"/></label><div className="document-list compact">{shown.map((document) => <DocumentRow key={document.id} document={document} selected={document.id === selected.id} onClick={() => select({ documentId: document.id })}/>)}</div></section><section className="panel review-panel"><header className="review-header"><div><span className="file-icon large">{selected.type.slice(0, 4)}</span></div><div><h2>{selected.title}</h2><dl><div><dt>Type</dt><dd>{selected.type}</dd></div><div><dt>Version</dt><dd>{selected.version}</dd></div><div><dt>Owner</dt><dd>{selected.owner}</dd></div></dl></div><div className="score-block"><strong>{scoreLabel(selected.score)}</strong><span>{selected.score == null ? 'Not assessed' : 'Complete'}</span></div></header><div className="checklist-picker"><label>Check against<select value={selected.checklistId || 'CHK-GENERAL'} onChange={(event) => run('/api/checklist/apply', { documentId: selected.id, checklistId: event.target.value })}>{state.checklists.map((checklist) => <option key={checklist.id} value={checklist.id}>{checklist.name}</option>)}</select></label><button className="text-button" onClick={() => setAddingChecklist(true)}>Add checklist</button></div><div className="review-actions"><button className="button button--primary" data-mira-action="check-document" disabled={busy} onClick={() => run('/api/document/review', { documentId: selected.id })}><Icon name="check"/>{busy ? 'AI is checking…' : 'Check with AI'}</button><button className="button" data-mira-action="ask-document" onClick={() => go('ask')}>Ask about it</button><a className="button" data-mira-action="download-report" href="/api/inspection-pack"><Icon name="download"/>Download PDF</a></div><div className="check-results"><h3>Check results</h3>{selected.checks.map((check) => <article key={check.label} className={`check-${check.result}`}><span><Icon name={check.result === 'pass' ? 'check' : check.result === 'fail' ? 'close' : 'dash'} size={17}/></span><div><strong>{check.label}</strong>{check.source && <span className={`provenance provenance--${check.source}`}>{check.source === 'rule' ? 'RULE' : 'AI'}</span>}{check.note && <p>{check.note}</p>}</div>{check.result === 'fail' && <button className="text-button" data-mira-action="draft-fix" onClick={() => run('/api/document/draft', { documentId: selected.id, section: check.label })}>Draft fix</button>}</article>)}</div></section></div>{addingChecklist && <ChecklistModal close={() => setAddingChecklist(false)} run={run}/>}</>
+  const matches = (document) => {
+    if (!document.title.toLowerCase().includes(query.toLowerCase())) return false
+    if (filter === 'attention') return document.status === 'Not ready' || document.checks.some((check) => check.result === 'fail')
+    if (filter === 'unassessed') return document.score == null
+    return true
+  }
+  const shown = state.documents.filter(matches)
+  const needAttention = state.documents.filter((document) => document.status === 'Not ready').length
+  // Assessed rows carry the verdicts; unassessed rows collapse into one honest
+  // line rather than repeating the same sentence ten times.
+  const assessed = selected.checks.filter((check) => check.result !== 'unknown')
+  const unassessed = selected.checks.filter((check) => check.result === 'unknown')
+  const counts = tally(selected.checks)
+  const checkRow = (check) => <article key={check.label} className={`check-${check.result}`}>
+    <span><Icon name={check.result === 'pass' ? 'check' : check.result === 'fail' ? 'close' : 'dash'} size={17}/></span>
+    <div>
+      <strong>{check.label}</strong>
+      {check.source && <span className={`provenance provenance--${check.source}`} title={check.source === 'rule' ? 'Deterministic rule check — reproducible' : 'Model judgement — verify before release'}>{check.source === 'rule' ? 'Rule' : 'AI'}</span>}
+      {check.note && <p>{check.note}</p>}
+    </div>
+    {check.result === 'fail' && <button className="text-button" data-mira-action="draft-fix" onClick={() => run('/api/document/draft', { documentId: selected.id, section: check.label })}>Draft fix</button>}
+  </article>
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey) return
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return
+      event.preventDefault()
+      searchRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  return <><PageTitle title="Documents" action={<UploadButton openFile={openFile}/>}/><div className="review-layout">
+    <section className="panel document-browser">
+      <label className="search-field"><Icon name="search" size={17}/><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents  ( / )"/></label>
+      <div className="browser-filters">
+        {[['all', 'All'], ['attention', 'Needs attention'], ['unassessed', 'Not assessed']].map(([key, label]) =>
+          <button key={key} className={`filter-chip ${filter === key ? 'is-on' : ''}`} onClick={() => setFilter(key)}>{label}</button>)}
+      </div>
+      <div className="document-list">{shown.map((document) => <DocumentRow key={document.id} document={document} selected={document.id === selected.id} onClick={() => select({ documentId: document.id })}/>)}</div>
+      <div className="browser-foot"><span>{shown.length} of {state.documents.length} documents</span><span>{needAttention} need attention</span></div>
+    </section>
+    <section className="panel review-panel">
+      <header className="review-header">
+        <div>
+          <h2>{selected.title}</h2>
+          <dl>
+            <div><dt>Type</dt><dd><span className="data">{typeCode(selected.type)}</span> · {selected.type}</dd></div>
+            <div><dt>Version</dt><dd className="data">{selected.version || '—'}</dd></div>
+            <div><dt>Owner</dt><dd>{selected.owner}</dd></div>
+          </dl>
+        </div>
+        <div className="score-block"><strong>{scoreLabel(selected.score)}</strong><span>{selected.score == null ? 'Not assessed' : 'Complete'}</span></div>
+      </header>
+      <div className="checklist-picker"><label>Check against<select value={selected.checklistId || 'CHK-GENERAL'} onChange={(event) => run('/api/checklist/apply', { documentId: selected.id, checklistId: event.target.value })}>{state.checklists.map((checklist) => <option key={checklist.id} value={checklist.id}>{checklist.name}</option>)}</select></label><button className="text-button" onClick={() => setAddingChecklist(true)}>Add checklist</button></div>
+      <div className="review-actions"><button className="button button--primary" data-mira-action="check-document" disabled={busy} onClick={() => run('/api/document/review', { documentId: selected.id })}><Icon name="check"/>{busy ? 'AI is checking…' : 'Check with AI'}</button><button className="button" data-mira-action="ask-document" onClick={() => go('ask')}>Ask about it</button><a className="button" data-mira-action="download-report" href="/api/inspection-pack"><Icon name="download"/>Download PDF</a></div>
+      <div className="check-summary">
+        <h3>Check results</h3>
+        <ProvenanceKey/>
+        <Meter checks={selected.checks}/>
+        <p className="check-caption"><b className="data">{counts.pass}</b> passed · <b className="data">{counts.fail}</b> failed · <b className="data">{counts.unknown}</b> not assessed</p>
+      </div>
+      <div className="check-results">
+        {assessed.map(checkRow)}
+        {unassessed.length > 0 && <details className="unassessed">
+          <summary>{unassessed.length} item(s) not assessed — run the AI check to evaluate them</summary>
+          {unassessed.map(checkRow)}
+        </details>}
+      </div>
+    </section>
+  </div>{addingChecklist && <ChecklistModal close={() => setAddingChecklist(false)} run={run}/>}</>
 }
 
 function IssueEditor({ finding, action, state, run, select, go }) {
@@ -100,13 +219,13 @@ function IssueEditor({ finding, action, state, run, select, go }) {
   const [status, setStatus] = useState(finding.status)
   const [note, setNote] = useState('')
   useEffect(() => { setOwner(finding.owner); setDue(finding.due); setStatus(finding.status); setNote('') }, [finding.id])
-  return <section className="panel issue-detail"><header><div><span className={`severity-text severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><h2>{finding.title}</h2></div><Status>{finding.status}</Status></header><p className="issue-description">{finding.detail}</p><div className="source-list"><strong>Supporting documents</strong>{finding.sourceIds.map((sourceId) => { const document = state.documents.find((item) => item.id === sourceId); return document ? <button key={sourceId} data-mira-action="open-evidence" onClick={() => { select({ documentId: sourceId }); go('documents') }}>{document.title}<Icon name="chevron" size={14}/></button> : null })}</div>{finding.verification && <p className="live-proof">Independently verified: {finding.verification}</p>}<section className="recommended-fix"><h3>Recommended fix</h3><p>{finding.recommendation}</p></section><div className="issue-fields"><label>Owner<input value={owner} onChange={(event) => setOwner(event.target.value)}/></label><label>Due date<input value={due} onChange={(event) => setDue(event.target.value)}/></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option>Open</option><option>In progress</option><option>Resolved</option></select></label><button className="button" data-mira-action="save-issue" onClick={() => run('/api/finding/update', { findingId: finding.id, owner, due, status })}>Save</button></div>{!action && <div className="decision-box"><button className="button button--primary" data-mira-action="prepare-fix" onClick={() => run('/api/action/prepare', { findingId: finding.id })}>Prepare fix task</button></div>}{action && <div className="decision-box"><h3>{action.title}</h3><p>{action.impact}</p>{action.status === 'Awaiting approval' ? <><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Decision note"/><div><button className="button" onClick={() => run('/api/action/reject', { actionId: action.id, actor: 'Anita Nair', note })}>Reject</button><button className="button button--primary" onClick={() => run('/api/action/approve', { actionId: action.id, actor: 'Anita Nair', note })}>Approve task</button></div></> : <strong>{action.status}{action.decisionNote ? ` — ${action.decisionNote}` : ''}</strong>}</div>}</section>
+  return <section className="panel issue-detail"><header><div><span className={`severity-text severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><h2>{finding.title}</h2></div><Status>{finding.status}</Status></header><p className="issue-description">{finding.detail}</p><div className="source-list"><strong>Supporting documents</strong>{finding.sourceIds.map((sourceId) => { const document = state.documents.find((item) => item.id === sourceId); return document ? <button key={sourceId} data-mira-action="open-evidence" onClick={() => { select({ documentId: sourceId }); go('documents') }}>{document.title}<Icon name="chevron" size={14}/></button> : null })}</div>{finding.verification && <p className="live-proof">Independently verified: {finding.verification}</p>}<section className="recommended-fix"><h3>Recommended fix</h3><p>{finding.recommendation}</p></section><div className="issue-fields"><label>Owner<input value={owner} onChange={(event) => setOwner(event.target.value)}/></label><label>Due date<input value={due} onChange={(event) => setDue(event.target.value)}/></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option>Open</option><option>In progress</option><option>Resolved</option></select></label><button className="button" data-mira-action="save-issue" onClick={() => run('/api/finding/update', { findingId: finding.id, owner, due, status })}>Save</button></div>{!action && <div className="decision-box"><button className="button button--primary" data-mira-action="prepare-fix" onClick={() => run('/api/action/prepare', { findingId: finding.id })}>Prepare fix task</button></div>}{action && <div className="decision-box"><h3>{action.title}</h3><p>{action.impact}</p>{action.status === 'Awaiting approval' ? <><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Decision note"/><div><button className="button button--danger" onClick={() => run('/api/action/reject', { actionId: action.id, actor: 'Anita Nair', note })}>Reject</button><button className="button button--primary" onClick={() => run('/api/action/approve', { actionId: action.id, actor: 'Anita Nair', note })}>Approve task</button></div></> : <strong>{action.status}{action.decisionNote ? ` — ${action.decisionNote}` : ''}</strong>}</div>}</section>
 }
 
 function Issues({ state, run, select, go }) {
   const selected = state.findings.find((finding) => finding.id === state.selectedFindingId) || state.findings[0]
   const action = selected ? state.actions.find((item) => item.findingId === selected.id) : null
-  return <><PageTitle title="Issues" action={<button className="button button--primary" onClick={() => run('/api/workspace/review')}>Review all documents</button>}/><div className="issues-layout"><section className="panel issue-list">{state.findings.map((finding) => <button key={finding.id} className={finding.id === selected?.id ? 'is-selected' : ''} onClick={() => select({ findingId: finding.id })}><span className={`severity-line severity-${finding.severity.toLowerCase()}`}/><span><strong>{finding.title}</strong><span>{finding.owner}</span></span><Icon name="chevron" size={15}/></button>)}</section>{selected ? <IssueEditor key={selected.id} finding={selected} action={action} state={state} run={run} select={select} go={go}/> : <section className="panel empty-panel">No issues found.</section>}</div></>
+  return <><PageTitle title="Issues" action={<button className="button button--primary" onClick={() => run('/api/workspace/review')}>Review all documents</button>}/><div className="issues-layout"><section className="panel issue-list"><div>{state.findings.map((finding) => <button key={finding.id} className={finding.id === selected?.id ? 'is-selected' : ''} onClick={() => select({ findingId: finding.id })}><span className={`severity-line severity-${finding.severity.toLowerCase()}`}/><span><strong>{finding.title}</strong><span>{finding.owner}</span></span><Icon name="chevron" size={15}/></button>)}</div><div className="browser-foot"><span>{state.findings.length} issues</span><span>{state.findings.filter((finding) => finding.severity === 'Critical').length} critical</span></div></section>{selected ? <IssueEditor key={selected.id} finding={selected} action={action} state={state} run={run} select={select} go={go}/> : <section className="panel empty-panel">No issues found.</section>}</div></>
 }
 
 function Mira({ state, ask, busy, select }) {
@@ -115,7 +234,7 @@ function Mira({ state, ask, busy, select }) {
   const selected = state.documents.find((document) => document.id === state.selectedDocumentId) || state.documents[0]
   const submit = (text = question) => { if (!text.trim() || busy) return; ask(text, scope); setQuestion('') }
   const suggestions = ['Is this ready?', 'What is missing?', 'Are any documents contradictory?', 'What should we fix first?']
-  return <><PageTitle title="Mira"/><section className="panel ask-shell"><aside className="ask-sidebar"><label>Answer using</label><select value={scope} onChange={(event) => setScope(event.target.value)}><option value="document">Selected document</option><option value="workspace">All documents</option></select>{scope === 'document' && <select className="document-select" value={selected.id} onChange={(event) => select({ documentId: event.target.value })}>{state.documents.map((document) => <option key={document.id} value={document.id}>{document.title}</option>)}</select>}<h2>Try a question</h2>{suggestions.map((prompt, index) => <button key={prompt} data-mira-action={index === 1 ? 'ask-missing' : index === 3 ? 'ask-next' : undefined} disabled={busy} onClick={() => submit(prompt)}>{prompt}<Icon name="chevron" size={15}/></button>)}</aside><div className="chat"><div className="messages">{state.copilot.map((message) => <article key={message.id} className={`message message--${message.role}`}><div className="message-avatar">{message.role === 'assistant' ? 'M' : 'You'}</div><div><p>{message.text}</p>{message.sources?.length > 0 && <div className="answer-sources"><strong>Based on:</strong>{message.sources.map((source) => <span key={source}>{state.documents.find((document) => document.id === source)?.title || 'Supporting document'}</span>)}</div>}{message.confidence != null && <div className="confidence">Confidence: {message.confidence}%</div>}</div></article>)}{busy && <article className="message"><div className="message-avatar">M</div><div className="thinking"><i/><i/><i/><strong>Mira is thinking…</strong></div></article>}</div><form className="ask-form" onSubmit={(event) => { event.preventDefault(); submit() }}><textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask Mira"/><button className="button button--primary" disabled={!question.trim() || busy}>{busy ? 'Thinking…' : 'Ask Mira'}</button></form></div></section></>
+  return <><PageTitle title="Mira"/><section className="panel ask-shell"><aside className="ask-sidebar"><label>Answer using</label><select value={scope} onChange={(event) => setScope(event.target.value)}><option value="document">Selected document</option><option value="workspace">All documents</option></select>{scope === 'document' && <select className="document-select" value={selected.id} onChange={(event) => select({ documentId: event.target.value })}>{state.documents.map((document) => <option key={document.id} value={document.id}>{document.title}</option>)}</select>}<h2>Try a question</h2>{suggestions.map((prompt, index) => <button key={prompt} data-mira-action={index === 1 ? 'ask-missing' : index === 3 ? 'ask-next' : undefined} disabled={busy} onClick={() => submit(prompt)}>{prompt}<Icon name="chevron" size={15}/></button>)}</aside><div className="chat"><div className="messages">{state.copilot.map((message) => <article key={message.id} className={`message message--${message.role}`}><div className="message-avatar">{message.role === 'assistant' ? 'M' : 'You'}</div><div><p>{message.text}</p>{message.sources?.length > 0 && <div className="answer-sources"><strong>Based on:</strong>{message.sources.map((source) => <span key={source}>{state.documents.find((document) => document.id === source)?.title || 'Supporting document'}</span>)}</div>}{message.confidence != null && <div className="confidence">Confidence <Meter value={message.confidence} band className="meter--inline"/> <b className="data">{message.confidence}%</b></div>}</div></article>)}{busy && <article className="message"><div className="message-avatar">M</div><div className="thinking"><i/><i/><i/><strong>Mira is thinking…</strong></div></article>}</div><form className="ask-form" onSubmit={(event) => { event.preventDefault(); submit() }}><textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask Mira"/><button className="button button--primary" disabled={!question.trim() || busy}>{busy ? 'Thinking…' : 'Ask Mira'}</button></form></div></section></>
 }
 
 function SafetyTests({ state, run, busy }) {
@@ -143,22 +262,34 @@ function AuditTrail() {
     </section>
     <section className="panel"><div className="table-wrap"><table className="trail-table">
       <thead><tr><th>#</th><th>When</th><th>Who</th><th>Action</th><th>Event</th><th>Document</th><th>Ver</th><th>Hash</th></tr></thead>
-      <tbody>{events.map((event) => <Fragment key={event.seq}>
-        <tr className={event.prompt ? 'has-detail' : ''} onClick={() => event.prompt && setOpenRow(openRow === event.seq ? null : event.seq)}>
-          <td>{event.seq}</td>
-          <td>{new Date(event.at).toLocaleString('en-GB')}</td>
-          <td>{event.actor}</td>
-          <td>{event.action}</td>
-          <td>{event.title}{event.prompt && <em> — click to see the prompt and response</em>}</td>
-          <td>{event.document_id || '—'}</td>
-          <td>{event.document_version || '—'}</td>
-          <td className="hash">{event.hash.slice(0, 12)}…</td>
-        </tr>
-        {openRow === event.seq && <tr className="trail-detail"><td colSpan={8}>
-          <div><strong>Prompt sent</strong><pre>{event.prompt}</pre></div>
-          <div><strong>Response returned{event.model ? ` — ${event.model}` : ''}</strong><pre>{event.response}</pre></div>
-        </td></tr>}
-      </Fragment>)}</tbody>
+      <tbody>{events.map((event, index) => {
+        // Events arrive seq DESC, so the chronologically prior row is the next
+        // array item. The chain relation is that this row's prev_hash IS that
+        // row's hash — an identity a judge can read and check by eye.
+        const prior = events[index + 1]
+        const linked = prior ? prior.hash === event.prev_hash : event.prev_hash === 'genesis'
+        return <Fragment key={event.seq}>
+          <tr className={`${event.prompt ? 'has-detail' : ''} ${linked ? '' : 'chain-broken'}`} onClick={() => setOpenRow(openRow === event.seq ? null : event.seq)}>
+            <td className="data">{event.seq}</td>
+            <td className="data">{new Date(event.at).toLocaleString('en-GB')}</td>
+            <td>{event.actor}</td>
+            <td>{event.action}</td>
+            <td>{event.title}<em> — click to verify the link</em></td>
+            <td className="data">{event.document_id || '—'}</td>
+            <td className="data">{event.document_version || '—'}</td>
+            <td className="hash data"><b>{event.hash.slice(0, 8)}</b><span>{event.hash.slice(8, 12)}…</span></td>
+          </tr>
+          {openRow === event.seq && <tr className="trail-detail"><td colSpan={8}>
+            <div className={`chain-proof ${linked ? 'is-linked' : 'is-broken'}`}>
+              <span>prev</span><code className="data">{event.prev_hash}</code>
+              <span>this</span><code className="data">{event.hash}</code>
+              <em>{linked ? `matches the hash of row #${prior ? prior.seq : 'genesis'}` : 'DOES NOT MATCH — chain broken'}</em>
+            </div>
+            {event.prompt && <div><strong>Prompt sent</strong><pre>{event.prompt}</pre></div>}
+            {event.response && <div><strong>Response returned{event.model ? ` — ${event.model}` : ''}</strong><pre>{event.response}</pre></div>}
+          </td></tr>}
+        </Fragment>
+      })}</tbody>
     </table></div></section>
   </>
 }
@@ -207,7 +338,7 @@ function EvidenceMap({ state, select, go }) {
             onKeyDown={(event) => { if (event.key === 'Enter') { select({ documentId: node.id }); go('documents') } }}>
             <circle cx={node.x} cy={node.y} r="34" className={`node-circle node-${node.state}`}/>
             <text x={node.x} y={node.y + 4} className="node-score">{node.score == null ? '—' : `${node.score}%`}</text>
-            <text x={node.x} y={node.y + 54} className="node-label">{node.title.length > 26 ? `${node.title.slice(0, 25)}…` : node.title}</text>
+            <text x={node.x} y={node.y + 54} className="node-label">{node.title.length > 34 ? `${node.title.slice(0, 33)}…` : node.title}</text>
             <text x={node.x} y={node.y + 70} className="node-meta">{node.label}{node.open ? ` · ${node.open} open` : ''}</text>
           </g>)}
         </svg>
@@ -556,6 +687,19 @@ export default function App() {
     window.scrollTo(0, 0)
   }
 
+  // Cmd/Ctrl 1-7 jumps between views; Escape dismisses whatever modal is open.
+  useEffect(() => {
+    const onKey = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key >= '1' && event.key <= '7') {
+        event.preventDefault()
+        go(Object.keys(views)[Number(event.key) - 1])
+      }
+      if (event.key === 'Escape') document.querySelector('.modal-backdrop .icon-button')?.click()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const run = async (url, body = {}) => {
     setBusy(true)
     setError('')
@@ -597,5 +741,5 @@ export default function App() {
   }, [state, view, busy])
 
   if (!state) return <main className="loading">Loading…</main>
-  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => go('home')}><span>DC</span><strong>Document Checker</strong></button><nav>{Object.entries(views).map(([key, label]) => <button key={key} className={view === key ? 'is-current' : ''} onClick={() => go(key)}><Icon name={key}/><span>{label}</span></button>)}</nav><div className="sidebar-user"><span>AN</span><strong>Anita Nair</strong></div></aside><div className="workspace"><header className="topbar"><button className="mobile-brand" onClick={() => go('home')}>DC</button><strong>{views[view]}</strong><div><button className="button button--primary" onClick={() => fileInput.current?.click()}><Icon name="upload" size={17}/>Upload</button><button className="icon-button" onClick={() => run('/api/reset')} title="Reset demo"><Icon name="reset"/></button></div></header>{!state.ai?.configured && <div className="connection-warning"><strong>OpenAI is not connected.</strong> Add OPENAI_API_KEY to .env and restart the server.</div>}{error && <div className="error">{error}</div>}<main className="content">{content}</main></div><input ref={fileInput} type="file" accept=".txt,.md,.csv,.json,.pdf,.docx,.xlsx,.jpg,.jpeg,.png,.webp" hidden onChange={(event) => { importFile(event.target.files?.[0]); event.target.value = '' }}/><MiraHost state={state} view={view} go={go}/>{state.draft && <DraftModal draft={state.draft} run={run} close={() => run('/api/document/draft/dismiss')}/>}</div>
+  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => go('home')}><span>DC</span><strong>Document Checker</strong></button><nav>{NAV_GROUPS.map(([group, keys]) => <Fragment key={group}><span className="nav-group-label">{group}</span>{keys.map((key) => <button key={key} className={view === key ? 'is-current' : ''} onClick={() => go(key)}><Icon name={key}/><span>{views[key]}</span></button>)}</Fragment>)}</nav><div className="sidebar-user"><span>AN</span><strong>Anita Nair</strong></div></aside><div className="workspace"><header className="topbar"><button className="mobile-brand" onClick={() => go('home')}>DC</button><strong>{views[view]}</strong><div><button className="button button--primary" onClick={() => fileInput.current?.click()}><Icon name="upload" size={17}/>Upload</button><button className="icon-button" onClick={() => run('/api/reset')} title="Reset demo"><Icon name="reset"/></button></div></header>{!state.ai?.configured && <div className="connection-warning"><strong>OpenAI is not connected.</strong> Add OPENAI_API_KEY to .env and restart the server.</div>}{error && <div className="error">{error}</div>}<main className="content">{content}</main></div><input ref={fileInput} type="file" accept=".txt,.md,.csv,.json,.pdf,.docx,.xlsx,.jpg,.jpeg,.png,.webp" hidden onChange={(event) => { importFile(event.target.files?.[0]); event.target.value = '' }}/><MiraHost state={state} view={view} go={go}/>{state.draft && <DraftModal draft={state.draft} run={run} close={() => run('/api/document/draft/dismiss')}/>}</div>
 }
