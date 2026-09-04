@@ -4,6 +4,7 @@
 //
 //   npm run bench              all splits, 3 repeats
 //   npm run bench -- --runs 1  faster single pass
+import 'dotenv/config'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -7,7 +8,9 @@ import { DatabaseSync } from 'node:sqlite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const testMode = Boolean(process.env.NODE_TEST_CONTEXT)
-const dataDirectory = path.resolve(__dirname, '..', 'data')
+const dataDirectory = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'document-checker-data')
+  : path.resolve(__dirname, '..', 'data')
 if (!testMode) fs.mkdirSync(dataDirectory, { recursive: true })
 
 const database = new DatabaseSync(testMode ? ':memory:' : path.join(dataDirectory, 'document-checker.db'))
