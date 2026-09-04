@@ -1,6 +1,5 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -8,9 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const testMode = Boolean(process.env.NODE_TEST_CONTEXT)
-const dataDirectory = process.env.VERCEL
-  ? path.join(os.tmpdir(), 'document-checker-data')
-  : path.resolve(__dirname, '..', 'data')
+const dataDirectory = path.resolve(__dirname, '..', 'data')
 if (!testMode) fs.mkdirSync(dataDirectory, { recursive: true })
 
 const database = new DatabaseSync(testMode ? ':memory:' : path.join(dataDirectory, 'document-checker.db'))
@@ -112,7 +109,12 @@ export function verifyAuditChain() {
 }
 
 // Test-only: the tamper scenario needs a way to corrupt and restore one row.
+// The only UPDATE against an append-only table, and it exists so the tamper
+// test corrupts a real row instead of a mock. Gated on the test runner rather
+// than an env flag: testMode also selects the ':memory:' database above, so
+// this cannot reach a durable trail even if someone sets the variable by hand.
 export function _tamperAuditRow(seq, title) {
+  if (!testMode) throw new Error('_tamperAuditRow is available only under the test runner.')
   const before = database.prepare('SELECT title FROM audit_events WHERE seq = ?').get(seq)
   database.prepare('UPDATE audit_events SET title = ? WHERE seq = ?').run(title, seq)
   return before?.title
