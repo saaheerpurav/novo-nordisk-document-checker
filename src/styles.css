@@ -816,6 +816,7 @@ td strong { color: var(--text-primary); font-weight: var(--w-semi); }
 .workspace-result p { margin-top: var(--s-4); max-width: 72ch; font-size: var(--fs-13); line-height: var(--lh-body); color: var(--text-secondary); }
 .workspace-result .ledger { font-size: var(--fs-12); color: var(--text-muted); }
 .workspace-result .ledger b { font-family: var(--font-data); color: var(--text-primary); }
+.workspace-result-actions { display: flex; gap: var(--s-3); flex: 0 0 auto; }
 .rejected-issue { margin-top: var(--s-5); padding: 10px var(--s-5); border-left: 2px solid var(--unk-rail); background: var(--surface-sunken); border-radius: var(--r-2); }
 .rejected-issue strong { display: block; font-size: var(--fs-13); }
 .rejected-issue span { display: block; margin-top: var(--s-2); font-size: var(--fs-12); color: var(--text-muted); }

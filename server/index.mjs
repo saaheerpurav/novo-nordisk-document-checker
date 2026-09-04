@@ -89,19 +89,24 @@ app.post('/api/realtime/session', express.text({ type: ['application/sdp', 'text
 app.post('/api/workspace/review', asyncRoute(async (_request, response) => response.json(await reviewWorkspace())))
 app.post('/api/assurance/run', asyncRoute(async (request, response) => response.json(await runAssuranceScenario(request.body.scenarioId))))
 
-app.post('/api/scenario/release', async (_request, response) => {
-  const state = getState()
-  response.json(state)
+const sendWhatsAppSummary = async (_request, response) => {
   try {
+    const state = getState()
+    const ready = state.documents.filter((document) => document.status === 'Ready' || document.status === 'Approved').length
+    const openIssues = state.findings.filter((finding) => finding.status !== 'Resolved').length
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL || 'https://novo-nordisk-document-checker.vercel.app'
     const result = await sendWhatsAppAlert(
-      'Document Checker: The selected document has items that need attention. Reply EVIDENCE, OWNER, or OPEN.',
+      `Document Checker: ${ready}/${state.documents.length} documents ready, ${openIssues} open issues. Reply ISSUES, STATUS, EVIDENCE, OWNER, REPORT, or OPEN. ${publicBaseUrl}`,
     )
-    markWhatsAppDelivery(result.sent ? 'sent' : 'demo')
+    response.json(markWhatsAppDelivery(result.sent ? 'sent' : 'demo'))
   } catch (error) {
-    console.error(error.message)
     markWhatsAppDelivery('failed')
+    throw error
   }
-})
+}
+
+app.post('/api/whatsapp/alert', asyncRoute(sendWhatsAppSummary))
+app.post('/api/scenario/release', asyncRoute(sendWhatsAppSummary))
 
 app.post('/api/action/approve', (request, response) =>
   response.json(approveAction(request.body.actionId, request.body.actor || 'Demo Quality Approver', request.body.note)),

@@ -508,7 +508,7 @@ const initialState = () => ({
   assuranceScenarios: assuranceScenarios(),
   workspaceReview: null,
   draft: null,
-  whatsapp: { configured: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_WHATSAPP_TO), delivery: 'idle', message: '' },
+  whatsapp: { configured: Boolean(process.env.TWILIO_ACCOUNT_SID && (process.env.TWILIO_WHATSAPP_TO || process.env.DEMO_WHATSAPP_TO)), delivery: 'idle', message: '' },
   guide: { sequence: 1, text: 'Upload a document or choose an example. I can explain the check results and read answers aloud.' },
   copilot: [
     { id: 'CHAT-001', role: 'assistant', text: 'Choose a document and ask me what is missing, who owns it, or whether it is ready.', confidence: null, sources: [] },
@@ -563,6 +563,8 @@ export const getState = () => {
   // Derived, not stored: a freshly started server has never broadcast, and a
   // persisted workspace may predate the graph.
   state.evidenceGraph = buildEvidenceGraph(state.documents, state.findings)
+  state.whatsapp ||= { delivery: 'idle', message: '' }
+  state.whatsapp.configured = Boolean(process.env.TWILIO_ACCOUNT_SID && (process.env.TWILIO_WHATSAPP_TO || process.env.DEMO_WHATSAPP_TO))
   return clone(state)
 }
 

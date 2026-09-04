@@ -58,8 +58,9 @@ export function whatsappReply(body, state, baseUrl) {
 export async function sendWhatsAppAlert(message) {
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
-  const from = process.env.TWILIO_WHATSAPP_FROM
-  const to = process.env.TWILIO_WHATSAPP_TO
+  const address = (value) => value && (value.startsWith('whatsapp:') ? value : `whatsapp:${value}`)
+  const from = address(process.env.TWILIO_WHATSAPP_FROM)
+  const to = address(process.env.TWILIO_WHATSAPP_TO || process.env.DEMO_WHATSAPP_TO)
   if (!sid || !token || !from || !to) return { sent: false, reason: 'not_configured' }
 
   const body = new URLSearchParams({ From: from, To: to, Body: message })

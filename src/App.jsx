@@ -98,6 +98,7 @@ function ReviewProgress({ documents, active }) {
 
 function Home({ state, go, select, openFile, run, busy }) {
   const [reviewing, setReviewing] = useState(false)
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false)
   const [showRejected, setShowRejected] = useState(false)
   const [activeDocument, setActiveDocument] = useState(0)
   useEffect(() => {
@@ -107,6 +108,7 @@ function Home({ state, go, select, openFile, run, busy }) {
     return () => window.clearInterval(timer)
   }, [reviewing, state.documents.length])
   const reviewAll = async () => { setReviewing(true); try { await run('/api/workspace/review') } finally { setReviewing(false) } }
+  const sendWhatsApp = async () => { setSendingWhatsApp(true); try { await run('/api/whatsapp/alert') } finally { setSendingWhatsApp(false) } }
   const ready = state.documents.filter((document) => document.score != null && document.score >= 80).length
   const blocked = state.documents.filter((document) => document.status === 'Not ready').length
   const unassessed = state.documents.filter((document) => document.score == null).length
@@ -122,7 +124,7 @@ function Home({ state, go, select, openFile, run, busy }) {
       <article><span className="stat-label">Open issues</span><strong className="data">{openIssues}</strong><Meter value={openIssues ? Math.round((critical / openIssues) * 100) : 0} band/><p className="stat-foot">{critical} rated critical and unresolved.</p></article>
     </section>
     {reviewing && <ReviewProgress documents={state.documents} active={activeDocument}/>} 
-    {!reviewing && state.workspaceReview && <section className="panel workspace-result"><div><h2>Workspace review</h2><p>{state.workspaceReview.summary}</p>{state.workspaceReview.proposed != null && <p className="ledger">Proposed <b>{state.workspaceReview.proposed}</b> · retained <b>{state.workspaceReview.retained}</b> · rejected <b>{state.workspaceReview.rejected?.length || 0}</b> after independent verification{state.workspaceReview.rejected?.length > 0 && <button className="text-button" onClick={() => setShowRejected((open) => !open)}>{showRejected ? 'Hide' : 'Show'} rejected</button>}</p>}{showRejected && state.workspaceReview.rejected?.map((item) => <div key={item.title} className="rejected-issue"><strong>{item.title}</strong><span>{item.note}</span></div>)}</div><button className="button button--primary" data-mira-action="view-issues" onClick={() => go('issues')}>View {state.workspaceReview.issueCount} issues</button></section>}
+    {!reviewing && state.workspaceReview && <section className="panel workspace-result"><div><h2>Workspace review</h2><p>{state.workspaceReview.summary}</p>{state.workspaceReview.proposed != null && <p className="ledger">Proposed <b>{state.workspaceReview.proposed}</b> · retained <b>{state.workspaceReview.retained}</b> · rejected <b>{state.workspaceReview.rejected?.length || 0}</b> after independent verification{state.workspaceReview.rejected?.length > 0 && <button className="text-button" onClick={() => setShowRejected((open) => !open)}>{showRejected ? 'Hide' : 'Show'} rejected</button>}</p>}{showRejected && state.workspaceReview.rejected?.map((item) => <div key={item.title} className="rejected-issue"><strong>{item.title}</strong><span>{item.note}</span></div>)}</div><div className="workspace-result-actions"><button className="button" disabled={busy || !state.whatsapp?.configured} onClick={sendWhatsApp}>{sendingWhatsApp ? 'Sending…' : state.whatsapp?.delivery === 'sent' ? 'WhatsApp sent' : 'Send WhatsApp summary'}</button><button className="button button--primary" data-mira-action="view-issues" onClick={() => go('issues')}>View {state.workspaceReview.issueCount} issues</button></div></section>}
     <section className="panel"><div className="panel-head"><h2>Your documents</h2><button className="text-button" onClick={() => go('documents')}>View all</button></div><div className="document-list">{state.documents.map((document) => <DocumentRow key={document.id} document={document} onClick={() => { select({ documentId: document.id }); go('documents') }}/>)}</div></section>
   </>
 }
