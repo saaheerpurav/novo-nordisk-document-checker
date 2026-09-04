@@ -327,4 +327,111 @@ linked to this incident. No CAPA reference exists.
 This incident remains open. Closure requires a confirmed root cause, a
 completed and approved GxP impact assessment, and an approved corrective
 action. No closure approval has been recorded.`,
+'SOP-QC-118': `STANDARD OPERATING PROCEDURE
+Document ID: SOP-QC-118   Version: 3.1   Status: Approved
+Title: Refrigerated Storage Temperature Excursion Handling
+Site: Site DK — Quality Control
+Document owner: M. Sorensen, QC Laboratory Manager
+Approved by: A. Nair, Quality Assurance — 18 Mar 2026
+Approval signatures: A. Nair (QA, electronic signature 18 Mar 2026, meaning: approval);
+  M. Sorensen (QC Laboratory Manager, electronic signature 17 Mar 2026, meaning: authorship);
+  P. Lindqvist (Head of Production, electronic signature 18 Mar 2026, meaning: review)
+Effective date: 01 Apr 2026
+Periodic review interval: 24 months. Next scheduled review: 18 Mar 2028.
+
+1. PURPOSE
+This procedure defines how a temperature excursion in a refrigerated storage
+unit holding GxP material is detected, contained, assessed and closed. It
+exists so that product quality decisions after an excursion are made on
+recorded evidence rather than recollection.
+
+2. SCOPE
+Applies to all 2-8 degrees Celsius storage units at Site DK registered in the
+equipment list EQ-DK-COLD, including walk-in cold rooms, laboratory
+refrigerators and validated transport containers. It does not cover frozen
+storage below -15 degrees Celsius, which is governed by SOP-QC-124.
+
+3. RESPONSIBILITIES
+QC Analyst — acknowledges the alarm, records the excursion in the logbook and
+  moves material to a qualified unit.
+QC Laboratory Manager (document owner) — performs the impact assessment and
+  decides on material disposition.
+Quality Assurance — approves or rejects the disposition decision. QA approval
+  is required before any affected material returns to available stock.
+Facilities Engineering — investigates the equipment fault and returns the unit
+  to qualified status.
+Head of Production — is informed where the excursion affects released batches.
+
+4. PROCEDURE
+4.1 Acknowledge the alarm in the building management system within 15 minutes
+    and record the acknowledgement time.
+4.2 Read and record the actual temperature and the duration of the excursion
+    from the calibrated independent data logger, not from the unit display.
+4.3 Where the temperature is outside 2-8 degrees Celsius for more than 30
+    minutes, transfer all affected material to a qualified standby unit.
+4.4 Quarantine the affected material in SAP and mark it Not For Use.
+4.5 Record the excursion in the Cold Chain Excursion Log within one working day
+    of detection.
+4.6 The QC Laboratory Manager completes the impact assessment using the
+    stability data for the affected product.
+4.7 Quality Assurance reviews the assessment and records an approve or reject
+    decision with a signature and a date.
+4.8 Facilities Engineering returns the unit to qualified status and records the
+    requalification reference.
+4.9 Close the excursion record only after steps 4.6, 4.7 and 4.8 are complete.
+
+5. FAILURE AND RECOVERY
+5.1 If the standby unit is unavailable, move material to the validated
+    transport containers listed in EQ-DK-COLD and record the container ID.
+5.2 If the data logger has failed, treat the excursion as worst case using the
+    unit set point limits and record that the logger reading was unavailable.
+5.3 If the building management system is offline, record readings manually on
+    form FRM-QC-118-A every 30 minutes until the system is restored.
+5.4 If material has already left the site, initiate the recall assessment in
+    SOP-QA-009 within four hours.
+
+6. ESCALATION
+Any excursion exceeding four hours, or affecting released batches, is escalated
+immediately to the QA Manager on +45 44 44 88 12 and the Head of Production on
++45 44 44 88 30. Out of hours, contact the site duty manager on +45 44 44 88 00.
+Escalation is recorded in the excursion record with the time and the person
+contacted.
+
+7. RECORDS TO BE RETAINED
+Cold Chain Excursion Log entry (retain 10 years).
+Data logger export, unaltered (retain 10 years).
+Impact assessment and the QA disposition decision (retain 10 years).
+Equipment requalification record (retain for the life of the equipment plus 1
+year). All records are retained in Veeva QualityDocs under SOP-QC-118.
+
+8. DATA INTEGRITY CONTROLS
+Data logger exports are transferred to the validated file store by an automated
+job; manual editing of the export file is not permitted and the store is
+read-only to laboratory users. Each record is attributable to a named user
+through a unique account, is entered contemporaneously with the action, and
+retains the original reading alongside any subsequent correction. Corrections
+are made by strike-through with the reason, the initials and the date; the
+original value stays legible. The electronic audit trail in the building
+management system is enabled, cannot be disabled by laboratory users, and is
+reviewed monthly by the QC Laboratory Manager.
+
+9. CHANGE HISTORY
+Version 3.1 — 18 Mar 2026 — Added section 5.4 recall assessment trigger.
+  Reason: CAPA-2025-114 identified that off-site material was not addressed.
+Version 3.0 — 02 Feb 2025 — Extended scope to validated transport containers.
+  Reason: change control CC-2024-341, new distribution lane.
+Version 2.0 — 11 Jan 2023 — Added independent data logger requirement.
+  Reason: deviation DEV-2022-208, unit display found to under-read.
+
+10. OPEN DEVIATIONS
+DEV-2026-041 — Standby cold room CR-04 requalification is scheduled but not yet
+complete. Linked to CAPA-2026-018, owner Facilities Engineering, due 30 Sep
+2026. Interim control: validated transport containers per section 5.1. This
+deviation does not affect the validity of this procedure.
+
+11. APPROVAL
+Prepared by: M. Sorensen, QC Laboratory Manager — 17 Mar 2026
+Reviewed by: P. Lindqvist, Head of Production — 18 Mar 2026
+Approved by: A. Nair, Quality Assurance — 18 Mar 2026
+This version is effective from 01 Apr 2026 and supersedes version 3.0.`,
 }

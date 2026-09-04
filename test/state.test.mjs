@@ -8,7 +8,7 @@ const openAIResponse = (text) => ({ ok: true, json: async () => ({ id: 'resp_tes
 
 test('initial workspace contains usable example documents', () => {
   const state = resetState()
-  assert.equal(state.documents.length, 6)
+  assert.equal(state.documents.length, 7)
   assert.equal(state.documents[0].title, 'Software Requirements Document')
   assert.ok(state.documents.every((document) => document.checks.length > 0))
 })

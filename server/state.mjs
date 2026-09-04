@@ -394,6 +394,27 @@ const documents = () => [
       { label: 'A corrective action is recorded with an owner', result: 'fail', note: 'No approved corrective action is linked.' },
     ],
   },
+  // A real QMS holds compliant documents alongside failing ones, and a reviewer
+  // that only ever reports problems is as useless as one that never does. Every
+  // verdict below is derivable from the text in seed-content.mjs, and the three
+  // date and version items are re-derived by the rule layer at load.
+  {
+    id: 'SOP-QC-118', type: 'Procedure', title: 'Cold Chain Excursion Handling', systemId: 'SYS-QDOC', version: '3.1', status: 'Approved', score: 100, owner: 'M. Sorensen, QC Laboratory Manager', updated: '18 Mar 2026', approvalDate: '18 Mar 2026', effectiveDate: '01 Apr 2026',
+    summary: 'Approved and effective. Every checklist item is satisfied by the document text.',
+    checks: [
+      { label: 'Document owner is named', result: 'pass', note: 'Document owner: M. Sorensen, QC Laboratory Manager.' },
+      { label: 'Purpose and scope are explained', result: 'pass', note: 'Sections 1 and 2 state the purpose and the equipment in and out of scope.' },
+      { label: 'Responsibilities are assigned to roles', result: 'pass', note: 'Section 3 assigns five roles, including who may approve a disposition.' },
+      { label: 'Steps are complete and in order', result: 'pass', note: 'Section 4 runs 4.1 to 4.9 with no gaps and a defined closure condition.' },
+      { label: 'Failure and recovery steps are included', result: 'pass', note: 'Section 5 covers standby unit, logger and building system failure, and off-site material.' },
+      { label: 'Escalation contacts are identified', result: 'pass', note: 'Section 6 names the QA Manager, Head of Production and out-of-hours duty manager with numbers.' },
+      { label: 'Records to be retained are specified', result: 'pass', note: 'Section 7 lists four record types with retention periods and the storage location.' },
+      { label: 'Approval signatures are present', result: 'pass', note: 'Three electronic signatures with signer, date and meaning: authorship, review and approval.' },
+      { label: 'Changes are recorded with a reason', result: 'pass', note: 'Section 9 gives a reason for each of the three versions, citing CAPA, change control and deviation references.' },
+      { label: 'Data integrity controls are described', result: 'pass', note: 'Section 8 covers ALCOA+ attributes, read-only storage and a monthly audit trail review.' },
+      { label: 'Open deviations are listed with a CAPA reference', result: 'pass', note: 'DEV-2026-041 is listed with CAPA-2026-018, an owner, a due date and an interim control.' },
+    ],
+  },
 ]
 
 const findings = () => [
