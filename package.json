@@ -9,7 +9,8 @@
     "start": "node server/index.mjs --production",
     "test": "node --test",
     "verify:ui": "node scripts/verify-ui.mjs",
-    "bench": "node scripts/benchmark.mjs"
+    "bench": "node scripts/benchmark.mjs",
+    "samples": "node scripts/create-sample-docs.mjs"
   },
   "dependencies": {
     "docx": "^9.7.1",
