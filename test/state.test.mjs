@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { addChecklist, answerQuestion, applyChecklist, approveAction, decideDraft, draftMissingSection, getState, importDocument, prepareAction, recordMiraConversation, resetState, reviewDocument, reviewWorkspace, runAssuranceScenario } from '../server/state.mjs'
-import { twiml, whatsappReply } from '../server/twilio.mjs'
+import crypto from 'node:crypto'
+import { twiml, verifyTwilioRequest, whatsappReply } from '../server/twilio.mjs'
 
 const openAIResponse = (text) => ({ ok: true, json: async () => ({ id: 'resp_test', model: 'test-model', output: [{ type: 'message', content: [{ type: 'output_text', text }] }] }) })
 
@@ -359,4 +360,17 @@ test('Word input is extracted, its metadata is read, and protected files are ref
   assert.throws(() => extractText('old.doc', cfb), /Legacy \.doc/)
   const encryptedPdf = Buffer.from('%PDF-1.7\n1 0 obj<</Encrypt 2 0 R>>endobj')
   assert.throws(() => extractText('locked.pdf', encryptedPdf), /password-protected/)
+})
+
+test('an unsigned WhatsApp webhook is refused, not trusted', () => {
+  const params = { Body: 'STATUS', From: 'whatsapp:+10000000000' }
+  const url = 'https://example.test/api/whatsapp'
+  // No auth token configured: the request cannot be verified, so it must fail closed.
+  assert.equal(verifyTwilioRequest({ signature: 'anything', url, params, authToken: '' }), false)
+  // A wrong signature against a real token is refused.
+  assert.equal(verifyTwilioRequest({ signature: 'wrong', url, params, authToken: 'secret' }), false)
+  // The genuine Twilio signature is accepted.
+  const payload = Object.keys(params).sort().reduce((text, key) => text + key + params[key], url)
+  const good = crypto.createHmac('sha1', 'secret').update(payload).digest('base64')
+  assert.equal(verifyTwilioRequest({ signature: good, url, params, authToken: 'secret' }), true)
 })

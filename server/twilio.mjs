@@ -11,8 +11,13 @@ export function twiml(message) {
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${xmlEscape(message)}</Message></Response>`
 }
 
+// Fails CLOSED. A missing auth token used to return true, so an unconfigured
+// deployment accepted any unsigned POST to the webhook and answered it with
+// document status. An unverifiable request is not a trusted request, and a
+// product that argues for provenance cannot ship the opposite at its own edge.
+// The TWILIO_VALIDATE_SIGNATURE=false escape hatch is gone with it.
 export function verifyTwilioRequest({ signature, url, params, authToken }) {
-  if (!authToken || process.env.TWILIO_VALIDATE_SIGNATURE === 'false') return true
+  if (!authToken) return false
   const payload = Object.keys(params).sort().reduce((text, key) => text + key + params[key], url)
   const expected = crypto.createHmac('sha1', authToken).update(payload).digest('base64')
   const left = Buffer.from(signature || '')
